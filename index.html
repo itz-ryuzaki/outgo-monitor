@@ -176,11 +176,11 @@ function pmToAqi(pm) {
   if (!isFinite(pm)) return null
 const breakpoints = [
   { pmLow: 0,   pmHigh: 30,   aqiLow: 0,   aqiHigh: 50 },
-  { pmLow: 31,  pmHigh: 60,   aqiLow: 51,  aqiHigh: 100 },
-  { pmLow: 61,  pmHigh: 90,   aqiLow: 101, aqiHigh: 200 },
-  { pmLow: 91,  pmHigh: 120,  aqiLow: 201, aqiHigh: 300 },
-  { pmLow: 121, pmHigh: 250,  aqiLow: 301, aqiHigh: 400 },
-  { pmLow: 251, pmHigh: 800, aqiLow: 401, aqiHigh: 600 }
+  { pmLow: 30,  pmHigh: 60,   aqiLow: 51,  aqiHigh: 100 },
+  { pmLow: 60,  pmHigh: 90,   aqiLow: 101, aqiHigh: 200 },
+  { pmLow: 90,  pmHigh: 120,  aqiLow: 201, aqiHigh: 300 },
+  { pmLow: 120, pmHigh: 250,  aqiLow: 301, aqiHigh: 400 },
+  { pmLow: 250, pmHigh: 800, aqiLow: 401, aqiHigh: 600 }
 ]
 
   for (let bp of breakpoints) {
@@ -293,4 +293,5 @@ loadCity("Delhi")
 </script>
 </body>
 </html>
+
 
