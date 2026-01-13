@@ -1,0 +1,294 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<title>Best Time To Go Out</title>
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
+<script
+  src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+</script>
+
+<style>
+body {          margin:           0;
+                font-family:      sans-serif;
+                background:       #0f172a;
+                color:            white;}
+
+.container {    max-width:        420px;
+                margin:           auto;
+                padding:          20px;}
+
+h1 {            font-size:        22px;
+                margin-bottom:    5px;
+                  text-align:center}
+
+select {        width:            100%;
+                padding:          12px;
+                border-radius:    10px;
+                background:       #020617;
+                color:            white;
+                border:           1px solid #1e293b;
+                margin-bottom:    15px;}
+
+.location {     color:            #94a3b8;
+                margin-bottom:    20px;}
+
+.status-card {  border-radius:    16px;
+                padding:          25px;
+                text-align:       center;
+                margin-bottom:    20px;}
+
+.status-title { font-size:        18px;
+                margin-bottom:    5px;}
+
+.status-value { font-size:        28px;
+                font-weight:      bold; }
+
+.best-time {    background:       #020617;
+                border-radius:    12px;
+                padding:          15px;
+                margin-bottom:    20px; }
+
+.hourly {       background:       #020617;
+                border-radius:    12px;
+                padding:          15px; }
+
+.row {          display:          flex;
+                justify-content:  space-between;
+                padding:          10px 0;
+                border-bottom:    1px solid #1e293b;}
+
+
+.bad {                color: #f87171; }
+.mid {                color: #facc15; }
+.good {               color: #4ade80; }
+.status-card.red {    background: #7f1d1d; }
+.status-card.yellow { background: #78350f; }
+.status-card.green {  background: #064e3b; }
+
+#map {
+  height: 220px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.bar {
+  flex: 1;
+  height: 6px;
+  background: #1e293b;
+  border-radius: 6px;
+  margin: 0 10px;
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  border-radius: 6px;
+}
+
+.fill.good { background: #008c33; }
+.fill.mid  { background: #ffcc00; }
+.fill.bad  { background: #a20000; }
+
+</style>
+</head>
+
+<body>
+<div class="container">
+<h1>🌫 Know Your AQI 🌫</h1>
+
+<select id="citySelect"></select>
+<div class="location" id="location">Loading…</div>
+
+<div class="status-card" id="statusCard">
+  <div class="status-title">Right now</div>
+  <div class="status-value" id="nowAQI">Loading…</div>
+</div>
+
+<div id="map"></div>
+
+<div class="best-time">
+  <strong>Best window today</strong>
+  <p id="bestTime">Loading…</p>
+</div>
+
+<div class="hourly">
+  <strong>Hourly forecast</strong>
+  <div id="hourlyList"></div>
+</div>
+
+</div>
+
+<script>
+
+let map
+let marker
+
+//Cities
+const cities = {
+  "Delhi":         { lat: 28.61, lon: 77.21, factor: 3.2 },
+  "Gurgaon":       { lat: 28.45, lon: 77.02, factor: 3.0 },
+  "Noida":         { lat: 28.53, lon: 77.39, factor: 3.0 },
+  "Ghaziabad":     { lat: 28.66, lon: 77.41, factor: 3.0 },
+  "Greater Noida": { lat: 28.47, lon: 77.50, factor: 2.8 },
+  "Faridabad":    { lat: 28.41, lon: 77.31, factor: 2.9 },
+
+  "Mumbai":       { lat: 19.07, lon: 72.87, factor: 2.2 },
+  "Pune":         { lat: 18.52, lon: 73.85, factor: 2.0 },
+  "Ahmedabad":    { lat: 23.02, lon: 72.57, factor: 2.4 },
+
+  "Kolkata":      { lat: 22.57, lon: 88.36, factor: 2.5 },
+  "Chennai":      { lat: 13.08, lon: 80.27, factor: 1.9 },
+  "Bangalore":    { lat: 12.97, lon: 77.59, factor: 1.8 },
+  "Hyderabad":    { lat: 17.38, lon: 78.48, factor: 2.0 },
+
+  "Jaipur":       { lat: 26.91, lon: 75.78, factor: 2.4 },
+  "Lucknow":      { lat: 26.85, lon: 80.95, factor: 2.6 },
+  "Kanpur":       { lat: 26.45, lon: 80.33, factor: 2.7 },
+  "Patna":        { lat: 25.59, lon: 85.13, factor: 2.8 },
+
+  "Indore":       { lat: 22.72, lon: 75.85, factor: 2.2 },
+  "Bhopal":       { lat: 23.25, lon: 77.41, factor: 2.1 },
+  "Chandigarh":   { lat: 30.74, lon: 76.79, factor: 1.7 }
+}
+
+
+const citySelect = document.getElementById("citySelect")
+
+for (let city in cities) {
+  let option = document.createElement("option")
+  option.value = city
+  option.innerText = city
+  citySelect.appendChild(option)
+}
+
+map = L.map("map").setView([28.61, 77.21], 10)
+
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {attribution: "© OpenStreetMap"}).addTo(map)
+
+marker = L.marker([28.61, 77.21]).addTo(map)
+
+citySelect.value = "Delhi"
+
+function pmToAqi(pm) {
+  if (!isFinite(pm)) return null
+const breakpoints = [
+  { pmLow: 0,   pmHigh: 30,   aqiLow: 0,   aqiHigh: 50 },
+  { pmLow: 31,  pmHigh: 60,   aqiLow: 51,  aqiHigh: 100 },
+  { pmLow: 61,  pmHigh: 90,   aqiLow: 101, aqiHigh: 200 },
+  { pmLow: 91,  pmHigh: 120,  aqiLow: 201, aqiHigh: 300 },
+  { pmLow: 121, pmHigh: 250,  aqiLow: 301, aqiHigh: 400 },
+  { pmLow: 251, pmHigh: 800, aqiLow: 401, aqiHigh: 600 }
+]
+
+  for (let bp of breakpoints) {
+    if (pm >= bp.pmLow && pm <= bp.pmHigh) {
+      // Linear interpolation
+      return Math.round(
+        ((bp.aqiHigh - bp.aqiLow) / (bp.pmHigh - bp.pmLow)) *
+        (pm - bp.pmLow) +
+        bp.aqiLow
+      )
+    }
+  }
+
+  return 600 // extreme pollution
+}
+
+// AQI Data
+function loadCity(city) {
+  const { lat, lon, factor } = cities[city]
+  map.setView([lat, lon], 10)
+  marker.setLatLng([lat, lon])
+  document.getElementById("location").innerText = "📍 Your City : " + city
+
+  fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=pm2_5`)
+  .then(res => res.json())
+  .then(data => {
+    const times = data.hourly.time
+    console.log(times)
+    const pm = data.hourly.pm2_5
+    console.log(pm)
+    const now = new Date()
+
+    let hours = []
+    for (let i = 0; i < times.length; i++) {
+      if (typeof pm[i] !== "number" || pm[i] <= 0) continue
+      let t = new Date(times[i])
+      if (t > now && hours.length < 12) {
+        let adjustedPM = pm[i] * factor
+        adjustedPM = Math.min(adjustedPM, 350)
+        const aqi = pmToAqi(adjustedPM)
+        if (aqi !== null) {hours.push({ time: t, aqi })}
+      }
+    }
+
+// Current AQI Status
+    const current = hours[0]
+    const card = document.getElementById("statusCard")
+    const nowAQI = document.getElementById("nowAQI")
+    card.className = "status-card"
+
+    if (current.aqi <= 200) {
+      card.classList.add("green")
+      nowAQI.innerText = `AQI ${current.aqi} (Good)`
+    } else if (current.aqi <= 350) {
+      card.classList.add("yellow")
+      nowAQI.innerText = `AQI ${current.aqi} (Moderate)`
+    } else {
+      card.classList.add("red")
+      nowAQI.innerText = `AQI ${current.aqi} (Unhealthy)`
+    }
+
+// Choosing Best Going Out Time
+    let best = null
+    // best = { start: hours[i], end: hours[i+1], avg
+
+    for (let i = 0; i < hours.length - 1; i++) {
+      let avg = (hours[i].aqi + hours[i+1].aqi) / 2
+      if (!best || avg < best.avg) {
+        best = { start: hours[i], end: hours[i+1], avg }
+      }
+    }
+
+    document.getElementById("bestTime").innerText =
+      `🟢 ${best.start.time.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} - ${best.end.time.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`
+
+    const list = document.getElementById("hourlyList")
+    list.innerHTML = ""
+
+// GFuture Hours AQI data
+    hours.forEach(h => {
+      let row = document.createElement("div")
+      row.className = "row"
+
+      let color = h.aqi <= 200 ? "good" : h.aqi <= 350 ? "mid" : "bad"
+
+      // Scale AQI (0–500) into a 0–100% bar
+      let width = Math.min(h.aqi / 5, 100)
+
+      row.innerHTML = `
+        <span>${h.time.toLocaleTimeString([], {hour:'2-digit'})}</span>
+
+        <div class="bar">
+          <div class="fill ${color}" style="width:${width}%"></div>
+        </div>
+
+        <span class="${color}">${h.aqi}</span>
+      `
+
+      list.appendChild(row)
+    })
+  })
+}
+
+citySelect.addEventListener("change", () => {
+  loadCity(citySelect.value)
+})
+
+loadCity("Delhi")
+
+</script>
+</body>
+</html>
